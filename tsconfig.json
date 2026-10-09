@@ -10,8 +10,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noEmit": true
+    "noEmit": true,
+    "skipLibCheck": true
   },
+  "include": [
+    "src",
+    "build.config.ts"
+  ],
   "exclude": [
     "dist",
     "node_modules",

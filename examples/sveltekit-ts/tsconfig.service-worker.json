@@ -1,0 +1,13 @@
+{
+  "extends": "$app/tsconfig/service-worker",
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "vite-plugin-pwa/client"
+    ],
+    "strict": true
+  },
+  "include": [
+    "src/prompt-sw.ts"
+  ]
+}

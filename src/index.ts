@@ -12,7 +12,6 @@ export function SvelteKitPWA(userOptions: Partial<SvelteKitPWAOptions> = {}): Pl
   // `outDir` is SvelteKit's output folder (`.svelte-kit/output`), keep it: configureOptions rewrites it
   const kitOutputDir = userOptions.outDir
 
-  userOptions.integration.closeBundleOrder = 'pre'
   userOptions.integration.configureOptions = (
     viteConfig,
     options,

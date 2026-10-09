@@ -9,5 +9,8 @@
     "vite.config.ts",
     "playwright.config.ts",
     "test"
+  ],
+  "exclude": [
+    "src/prompt-sw.ts"
   ]
 }

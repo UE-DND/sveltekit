@@ -83,17 +83,18 @@ export function SvelteKitPlugin(
         // kit fixes sw name to 'service-worker.js'
         const kitSW = join(clientOutputDir, 'service-worker.js').replace(/\\/g, '/')
 
-        // the self-destroying service worker was generated in the buildApp hook: remove kit's one
-        if (options.selfDestroying) {
-          if (await isFile(kitSW))
-            await rm(kitSW)
-
-          return
-        }
-
-        let swName = options.filename ?? 'sw.js'
+        let swName = options.filename ?? 'service-worker.js'
         if (swName.endsWith('.ts'))
           swName = swName.replace(/\.ts$/, '.js')
+
+        // Kit may overwrite the worker generated in buildApp. Regenerate after its build,
+        // including when both workers use the default service-worker.js filename.
+        if (options.selfDestroying) {
+          if (swName !== 'service-worker.js' && await isFile(kitSW))
+            await rm(kitSW)
+          await api.generateSW()
+          return
+        }
 
         const injectionPoint = !options.injectManifest || !('injectionPoint' in options.injectManifest) || !!options.injectManifest.injectionPoint
 

@@ -20,6 +20,10 @@ export function configureSvelteKitOptions(
     assets = kitConfig?.files.assets ?? 'static',
   } = kit
 
+  // Kit's relative Vite base is not the deployed service worker scope.
+  options.base ??= base
+  const outputDir = resolve(viteOptions.root, kitOutputDir ?? `${outDir}/output`)
+
   // Vite will copy public folder to the globDirectory after pwa plugin runs:
   // globDirectory is the build folder.
   // SvelteKit will copy to the globDirectory before pwa plugin runs (via Vite client build in writeBundle hook):
@@ -30,7 +34,7 @@ export function configureSvelteKitOptions(
 
   // The service worker is generated from SvelteKit's buildApp hook, outside any environment build:
   // write it straight to the client output, the adapter will copy it with the rest of the client assets.
-  options.outDir = `${kitOutputDir ?? `${outDir}/output`}/client`
+  options.outDir = resolve(outputDir, 'client')
 
   let config: Partial<
     import('workbox-build').BasePartial
@@ -60,7 +64,7 @@ export function configureSvelteKitOptions(
   // SvelteKit outDir is `.svelte-kit/output/client`.
   // We need to include the parent folder since SvelteKit will generate SSG in `.svelte-kit/output/prerendered` folder.
   if (!config.globDirectory)
-    config.globDirectory = `${outDir}/output`
+    config.globDirectory = outputDir
 
   let buildAssetsDir = kit.appDir ?? kitConfig?.appDir ?? '_app/'
   if (buildAssetsDir[0] === '/')
@@ -74,7 +78,7 @@ export function configureSvelteKitOptions(
       config.globPatterns.push(`client/${buildAssetsDir}version.json`)
   }
 
-  // exclude server assets: sw is built on SSR build
+  // Server bundles must never enter the client precache.
   config.globIgnores = buildGlobIgnores(config.globIgnores)
 
   // Vite 5 support: allow override dontCacheBustURLsMatching
@@ -88,7 +92,7 @@ export function configureSvelteKitOptions(
       options.strategies === 'injectManifest'
         ? undefined
         : (options.manifestFilename ?? 'manifest.webmanifest'),
-      kit,
+      { ...kit, appDir: buildAssetsDir },
     )]
   }
 
@@ -96,7 +100,7 @@ export function configureSvelteKitOptions(
     options.pwaAssets.integration = {
       baseUrl: base,
       publicDir: resolve(viteOptions.root, assets),
-      outDir: resolve(outDir, 'output/client'),
+      outDir: options.outDir,
     }
   }
 }
@@ -110,7 +114,7 @@ interface ResolvedKitConfig {
 
 function resolveKitConfig(viteOptions: ResolvedConfig): ResolvedKitConfig | undefined {
   const plugin = viteOptions.plugins.find(p => p.name === 'vite-plugin-sveltekit-setup')
-  return (plugin?.api as { options?: { kit?: ResolvedKitConfig } } | undefined)?.options?.kit
+  return (plugin?.api as { options?: ResolvedKitConfig } | undefined)?.options
 }
 
 function createManifestTransform(
@@ -192,7 +196,7 @@ function createManifestTransform(
       else {
         manifest.push(await buildManifestEntry(
           name,
-          resolve(outDir, 'client/_app/version.json'),
+          resolve(outDir, 'client', options.appDir ?? '_app', 'version.json'),
         ))
       }
     }
