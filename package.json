@@ -50,7 +50,8 @@
     "test": "pnpm test:unit && pnpm test:examples",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:examples": "pnpm run -C examples/sveltekit-ts test && pnpm run -C examples/sveltekit-ts-assets-generator test",
-    "check": "tsc --noEmit && pnpm --dir examples/sveltekit-ts check && pnpm --dir examples/sveltekit-ts-assets-generator check"
+    "check": "tsc --noEmit && pnpm --dir examples/sveltekit-ts check && pnpm --dir examples/sveltekit-ts-assets-generator check",
+    "prepare": "unbuild"
   },
   "peerDependencies": {
     "@sveltejs/kit": "^3.0.0",
