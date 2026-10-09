@@ -1,9 +1,22 @@
 import type { Plugin, ResolvedConfig } from 'vite'
 import type { VitePluginPWAAPI, VitePWAOptions } from 'vite-plugin-pwa'
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { glob } from 'tinyglobby'
 
+/**
+ * SvelteKit 3 builds every Vite environment from its own `buildApp` hooks, in this order:
+ *
+ * 1. `vite-plugin-sveltekit-compile` (normal order): ssr build, client build and prerendering.
+ * 2. `vite-plugin-sveltekit-adapter` (`post` order): kit's service worker build, then the adapter.
+ *
+ * The service worker must be generated between both: after prerendering, so the precache manifest
+ * includes the prerendered pages, and before the adapter, so the adapter copies it with the rest of
+ * the client output.
+ *
+ * - `generateSW`: a normal order `buildApp` hook, `enforce: 'post'` keeps it after SvelteKit's one.
+ * - `injectManifest`: kit builds the service worker in step 2, the manifest is injected from the
+ *   `serviceWorker` environment `closeBundle` hook, before the adapter runs.
+ */
 export function SvelteKitPlugin(
   options: Partial<VitePWAOptions>,
   apiResolver: () => VitePluginPWAAPI | undefined,
@@ -12,13 +25,13 @@ export function SvelteKitPlugin(
   return <Plugin>{
     name: 'vite-plugin-pwa:sveltekit:build',
     apply: 'build',
-    enforce: 'pre',
+    enforce: 'post',
     configResolved(config) {
       viteConfig = config
     },
     async generateBundle(_, bundle) {
-      // generate only for client
-      if (viteConfig.build.ssr)
+      // generate only for client: kit's serviceWorker environment is also a client consumer
+      if (this.environment.name !== 'client')
         return
 
       const api = apiResolver()
@@ -29,14 +42,18 @@ export function SvelteKitPlugin(
       if (assetsGenerator)
         assetsGenerator.injectManifestIcons()
 
-      api.generateBundle(bundle, this)
+      // vite-plugin-pwa's API is typed with Rollup's types, Vite 8 bundles with Rolldown
+      type GenerateBundle = Parameters<VitePluginPWAAPI['generateBundle']>
+      api.generateBundle(bundle as unknown as GenerateBundle[0], this as unknown as GenerateBundle[1])
     },
     writeBundle: {
       sequential: true,
-      enforce: 'pre',
       async handler() {
+        if (this.environment.name !== 'client')
+          return
+
         const api = apiResolver()
-        if (!api || viteConfig.build.ssr)
+        if (!api)
           return
 
         const assetsGenerator = await api.pwaAssetsGenerator()
@@ -44,116 +61,60 @@ export function SvelteKitPlugin(
           await assetsGenerator.generate()
       },
     },
+    async buildApp() {
+      const api = apiResolver()
+      if (!api || api.disabled)
+        return
+
+      if (!options.strategies || options.strategies === 'generateSW' || options.selfDestroying)
+        await api.generateSW()
+    },
     closeBundle: {
       sequential: true,
-      enforce: 'pre',
       async handler() {
+        if (this.environment.name !== 'serviceWorker')
+          return
+
         const api = apiResolver()
+        if (!api || api.disabled || options.strategies !== 'injectManifest')
+          return
 
-        if (api && !api.disabled && viteConfig.build.ssr) {
-          const webManifest = options.manifestFilename ?? 'manifest.webmanifest'
-          let swName = options.filename ?? 'sw.js'
-          const outDir = options.outDir ?? `${viteConfig.root}/.svelte-kit/output`
-          const clientOutputDir = join(outDir, 'client')
-          await mkdir(clientOutputDir, { recursive: true })
-          if (!options.strategies || options.strategies === 'generateSW' || options.selfDestroying) {
-            let path: string
-            let existsFile: boolean
+        const clientOutputDir = options.outDir ?? join(viteConfig.root, '.svelte-kit/output/client')
+        // kit fixes sw name to 'service-worker.js'
+        const kitSW = join(clientOutputDir, 'service-worker.js').replace(/\\/g, '/')
 
-            // remove kit sw: we'll regenerate the sw
-            if (options.selfDestroying && options.strategies === 'injectManifest') {
-              if (swName.endsWith('.ts'))
-                swName = swName.replace(/\.ts$/, '.js')
+        // the self-destroying service worker was generated in the buildApp hook: remove kit's one
+        if (options.selfDestroying) {
+          if (await isFile(kitSW))
+            await rm(kitSW)
 
-              path = join(clientOutputDir, 'service-worker.js').replace('\\/g', '/')
-              existsFile = await isFile(path)
-              if (existsFile)
-                await rm(path)
-            }
-
-            // regenerate sw before adapter runs: we need to include generated html pages
-            await api.generateSW()
-
-            const serverOutputDir = join(outDir, 'server')
-            path = join(serverOutputDir, swName).replace(/\\/g, '/')
-            existsFile = await isFile(path)
-            if (existsFile) {
-              const sw = await readFile(path, 'utf-8')
-              await writeFile(
-                join(clientOutputDir, swName).replace('\\/g', '/'),
-                sw,
-                'utf-8',
-              )
-              await rm(path)
-            }
-            // move also workbox-*.js when using generateSW
-            const result = await glob({
-              patterns: ['workbox-*.js'],
-              cwd: serverOutputDir,
-              onlyFiles: true,
-              expandDirectories: false,
-            })
-            if (result && result.length > 0) {
-              path = join(serverOutputDir, result[0]).replace(/\\/g, '/')
-              await writeFile(
-                join(clientOutputDir, result[0]).replace('\\/g', '/'),
-                await readFile(path, 'utf-8'),
-                'utf-8',
-              )
-              await rm(path)
-            }
-            // remove also web manifest in server folder
-            path = join(serverOutputDir, webManifest).replace(/\\/g, '/')
-            existsFile = await isFile(path)
-            if (existsFile)
-              await rm(path)
-
-            return
-          }
-
-          if (swName.endsWith('.ts'))
-            swName = swName.replace(/\.ts$/, '.js')
-
-          const injectionPoint = !options.injectManifest || !('injectionPoint' in options.injectManifest) || !!options.injectManifest.injectionPoint
-
-          if (injectionPoint) {
-            // kit fixes sw name to 'service-worker.js'
-            const injectManifestOptions: import('workbox-build').InjectManifestOptions = {
-              globDirectory: outDir.replace(/\\/g, '/'),
-              ...options.injectManifest ?? {},
-              swSrc: join(clientOutputDir, 'service-worker.js').replace(/\\/g, '/'),
-              swDest: join(clientOutputDir, 'service-worker.js').replace(/\\/g, '/'),
-            }
-
-            const [injectManifest, logWorkboxResult] = await Promise.all([
-              import('workbox-build').then(m => m.injectManifest),
-              import('./log').then(m => m.logWorkboxResult),
-            ])
-
-            // inject the manifest
-            const buildResult = await injectManifest(injectManifestOptions)
-            // log workbox result
-            logWorkboxResult('injectManifest', viteConfig, buildResult)
-            // rename the sw
-            if (swName !== 'service-worker.js') {
-              await rename(
-                join(clientOutputDir, 'service-worker.js').replace('\\/g', '/'),
-                join(clientOutputDir, swName).replace('\\/g', '/'),
-              )
-            }
-          }
-          else {
-            const { logWorkboxResult } = await import('./log')
-            // log workbox result
-            logWorkboxResult('injectManifest', viteConfig)
-            if (swName !== 'service-worker.js') {
-              await rename(
-                join(clientOutputDir, 'service-worker.js').replace('\\/g', '/'),
-                join(clientOutputDir, swName).replace('\\/g', '/'),
-              )
-            }
-          }
+          return
         }
+
+        let swName = options.filename ?? 'sw.js'
+        if (swName.endsWith('.ts'))
+          swName = swName.replace(/\.ts$/, '.js')
+
+        const injectionPoint = !options.injectManifest || !('injectionPoint' in options.injectManifest) || !!options.injectManifest.injectionPoint
+
+        const { logWorkboxResult } = await import('./log')
+        if (injectionPoint) {
+          const { injectManifest } = await import('workbox-build')
+          // inject the manifest
+          const buildResult = await injectManifest({
+            ...options.injectManifest,
+            globDirectory: options.injectManifest!.globDirectory!,
+            swSrc: kitSW,
+            swDest: kitSW,
+          })
+          logWorkboxResult('injectManifest', viteConfig, buildResult)
+        }
+        else {
+          logWorkboxResult('injectManifest', viteConfig)
+        }
+
+        if (swName !== 'service-worker.js')
+          await rename(kitSW, join(clientOutputDir, swName).replace(/\\/g, '/'))
       },
     },
   }

@@ -2,10 +2,10 @@ import type { VitePWAOptions } from 'vite-plugin-pwa'
 
 export interface KitOptions {
   /**
-   * The base path for your application: by default will use the Vite base.
+   * The base path for your application: by default will use SvelteKit's `paths.base`.
    *
    * @deprecated since ^0.1.0 version, the plugin has SvelteKit ^1.0.0 as peer dependency, Vite's base is now properly configured.
-   * @default '/'
+   * @default `${kit.paths.base}/`
    * @see https://kit.svelte.dev/docs/configuration#paths
    */
   base?: string
@@ -13,13 +13,13 @@ export interface KitOptions {
   /**
    * The static folder for your application.
    *
-   * @default 'static'
+   * @default SvelteKit's `files.assets`, 'static'
    * @see https://kit.svelte.dev/docs/configuration#files
    */
   assets?: string
 
   /**
-   * @default '.svelte-kit'
+   * @default SvelteKit's `outDir`, '.svelte-kit'
    * @see https://kit.svelte.dev/docs/configuration#outdir
    */
   outDir?: string
@@ -36,7 +36,7 @@ export interface KitOptions {
   trailingSlash?: 'never' | 'always' | 'ignore'
 
   /**
-   * @default `_app`
+   * @default SvelteKit's `appDir`, `_app`
    * @see https://kit.svelte.dev/docs/configuration#appdir
    */
   appDir?: string

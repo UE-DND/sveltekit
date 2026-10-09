@@ -1,5 +1,5 @@
 <script lang='ts'>
-  import Header from '$lib/header/Header.svelte'
+  import Header from '#lib/header/Header.svelte'
   import { pwaInfo } from 'virtual:pwa-info'
   import '../app.css'
 
@@ -28,7 +28,7 @@
   <p>visit <a href='https://kit.svelte.dev'>kit.svelte.dev</a> to learn SvelteKit</p>
 </footer>
 
-{#await import('$lib/ReloadPrompt.svelte') then { default: ReloadPrompt }}
+{#await import('#lib/ReloadPrompt.svelte') then { default: ReloadPrompt }}
   <ReloadPrompt />
 {/await}
 

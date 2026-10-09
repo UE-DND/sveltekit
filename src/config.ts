@@ -8,12 +8,16 @@ export function configureSvelteKitOptions(
   kit: KitOptions,
   viteOptions: ResolvedConfig,
   options: Partial<VitePWAOptions>,
+  kitOutputDir?: string,
 ) {
+  // SvelteKit 3 sets Vite's base to './' when using relative paths (the default):
+  // read the app base and folders from SvelteKit's resolved config instead.
+  const kitConfig = resolveKitConfig(viteOptions)
   const {
-    base = viteOptions.base ?? '/',
+    base = kitConfig ? `${kitConfig.paths.base}/` : '/',
     adapterFallback,
-    outDir = `${viteOptions.root}/.svelte-kit`,
-    assets = 'static',
+    outDir = resolve(viteOptions.root, kitConfig?.outDir ?? '.svelte-kit'),
+    assets = kitConfig?.files.assets ?? 'static',
   } = kit
 
   // Vite will copy public folder to the globDirectory after pwa plugin runs:
@@ -23,6 +27,10 @@ export function configureSvelteKitOptions(
   // We need to disable includeManifestIcons: any icon in the static folder will be twice in the sw's precache manifest.
   if (typeof options.includeManifestIcons === 'undefined')
     options.includeManifestIcons = false
+
+  // The service worker is generated from SvelteKit's buildApp hook, outside any environment build:
+  // write it straight to the client output, the adapter will copy it with the rest of the client assets.
+  options.outDir = `${kitOutputDir ?? `${outDir}/output`}/client`
 
   let config: Partial<
     import('workbox-build').BasePartial
@@ -54,7 +62,7 @@ export function configureSvelteKitOptions(
   if (!config.globDirectory)
     config.globDirectory = `${outDir}/output`
 
-  let buildAssetsDir = kit.appDir ?? '_app/'
+  let buildAssetsDir = kit.appDir ?? kitConfig?.appDir ?? '_app/'
   if (buildAssetsDir[0] === '/')
     buildAssetsDir = buildAssetsDir.slice(1)
   if (buildAssetsDir[buildAssetsDir.length - 1] !== '/')
@@ -91,6 +99,18 @@ export function configureSvelteKitOptions(
       outDir: resolve(outDir, 'output/client'),
     }
   }
+}
+
+interface ResolvedKitConfig {
+  appDir: string
+  outDir: string
+  files: { assets: string }
+  paths: { base: string }
+}
+
+function resolveKitConfig(viteOptions: ResolvedConfig): ResolvedKitConfig | undefined {
+  const plugin = viteOptions.plugins.find(p => p.name === 'vite-plugin-sveltekit-setup')
+  return (plugin?.api as { options?: { kit?: ResolvedKitConfig } } | undefined)?.options?.kit
 }
 
 function createManifestTransform(
@@ -225,7 +245,6 @@ async function buildManifestEntry(url: string, path: string): Promise<ManifestEn
       reject(err)
     })
     stream.on('data', (chunk) => {
-      // @ts-expect-error TS2345: Argument of type string | Buffer is not assignable to parameter of type BinaryLike
       cHash.update(chunk)
     })
     stream.on('end', () => {

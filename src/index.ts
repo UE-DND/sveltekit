@@ -9,6 +9,9 @@ export function SvelteKitPWA(userOptions: Partial<SvelteKitPWAOptions> = {}): Pl
   if (!userOptions.integration)
     userOptions.integration = {}
 
+  // `outDir` is SvelteKit's output folder (`.svelte-kit/output`), keep it: configureOptions rewrites it
+  const kitOutputDir = userOptions.outDir
+
   userOptions.integration.closeBundleOrder = 'pre'
   userOptions.integration.configureOptions = (
     viteConfig,
@@ -17,6 +20,7 @@ export function SvelteKitPWA(userOptions: Partial<SvelteKitPWAOptions> = {}): Pl
     userOptions.kit ?? {},
     viteConfig,
     options,
+    kitOutputDir,
   )
 
   const plugins = VitePWA(userOptions)
@@ -28,7 +32,15 @@ export function SvelteKitPWA(userOptions: Partial<SvelteKitPWAOptions> = {}): Pl
 
   return [
     // remove the build plugin: we're using a custom one
-    ...plugins.filter(p => p && typeof p === 'object' && 'name' in p && p.name !== 'vite-plugin-pwa:build'),
+    ...plugins
+      .filter(p => p && typeof p === 'object' && 'name' in p && p.name !== 'vite-plugin-pwa:build')
+      .map((p) => {
+        // SvelteKit doesn't call transformIndexHtml hooks and warns about every plugin using one:
+        // there is no index.html, the app imports the service worker registration itself.
+        if ('transformIndexHtml' in p)
+          delete p.transformIndexHtml
+        return p
+      }),
     SvelteKitPlugin(userOptions, resolveVitePluginPWAAPI),
   ]
 }

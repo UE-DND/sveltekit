@@ -1,7 +1,9 @@
 import type { UserConfig } from 'vite'
 import process from 'node:process'
 import { sveltekit } from '@sveltejs/kit/vite'
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 import { SvelteKitPWA } from '@vite-pwa/sveltekit'
+import { adapter } from './adapter.mjs'
 // you don't need to do this if you're using generateSW strategy in your app
 import { generateSW } from './pwa.mjs'
 
@@ -26,7 +28,18 @@ const config: UserConfig = {
     },
   },
   plugins: [
-    sveltekit(),
+    sveltekit({
+      // Consult https://github.com/sveltejs/svelte-preprocess
+      // for more information about preprocessors
+      preprocess: vitePreprocess(),
+      adapter,
+      serviceWorker: { register: false },
+      files: {
+        // you don't need to do this if you're using generateSW strategy in your app
+        serviceWorker: generateSW ? undefined : 'src/prompt-sw.ts',
+      },
+    }),
+
     SvelteKitPWA({
       srcDir: './src',
       mode: 'development',
@@ -46,16 +59,8 @@ const config: UserConfig = {
         theme_color: '#ffffff',
         background_color: '#ffffff',
         icons: [
-          {
-            src: '/pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
           {
             src: '/pwa-512x512.png',
             sizes: '512x512',
