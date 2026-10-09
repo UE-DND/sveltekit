@@ -7,13 +7,7 @@ test('The service worker is registered and cache storage is present', async ({ p
   await page.goto('/')
 
   const swURL = await page.evaluate(async () => {
-    const registration = await Promise.race([
-      // eslint-disable-next-line ts/ban-ts-comment
-      // @ts-ignore
-      navigator.serviceWorker.ready,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Service worker registration failed: time out')), 10000)),
-    ])
-    // @ts-expect-error registration is of type unknown
+    const registration = await navigator.serviceWorker.ready
     return registration.active?.scriptURL
   })
   const swName = generateSW ? 'sw.js' : 'prompt-sw.js'

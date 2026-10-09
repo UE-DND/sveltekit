@@ -12,9 +12,9 @@ To develop and test the `@vite-pwa/sveltekit` package:
 
 1. Fork the `@vite-pwa/sveltekit` repository to your own GitHub account and then clone it to your local device.
 
-2. Ensure using the latest Node.js (18.13+)
+2. Ensure using the latest Node.js (22.17+)
 
-3. `@vite-pwa/sveltekit` uses pnpm v8. If you are working on multiple projects with different versions of pnpm, it's recommend to enable [Corepack](https://github.com/nodejs/corepack) by running `corepack enable`.
+3. `@vite-pwa/sveltekit` uses pnpm v10. If you are working on multiple projects with different versions of pnpm, it's recommend to enable [Corepack](https://github.com/nodejs/corepack) by running `corepack enable`.
 
 4. Check out a branch where you can work and commit your changes:
 ```shell
@@ -33,4 +33,4 @@ To test your changes locally, change to `examples/sveltekit-ts` folder and run `
 
 Before running tests, you'll need to install [Playwright](https://playwright.dev/) Chromium browser: `pnpm playwright install chromium`.
 
-Run `pnpm run test` in `@vite-pwa/sveltekit`'s root folder or inside `examples/sveltekit-ts` folder after build `@vite-pwa/sveltekit`.
+Run `pnpm build`, `pnpm lint`, `pnpm check` and `pnpm test` from the repository root. Build first: the integration fixtures and examples use the built package. Tests cover both worker strategies with static and Node adapters, offline navigation in Chromium, generated icons, custom Kit paths and self-destroying workers. `pnpm test:unit` runs the focused configuration, lifecycle and real-build regressions.

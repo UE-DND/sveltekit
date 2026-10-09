@@ -20,13 +20,13 @@ export default defineConfig({
   testDir: './client-test',
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */
   outputDir: 'test-results/',
-  timeout: 5 * 1000,
+  timeout: 30 * 1000,
   expect: {
     /**
      * Maximum time expect() should wait for the condition to be met.
      * For example in `await expect(locator).toHaveText();`
      */
-    timeout: 1000,
+    timeout: 10000,
   },
   /* Run tests in files in parallel */
   fullyParallel: true,

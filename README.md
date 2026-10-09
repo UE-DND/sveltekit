@@ -45,6 +45,8 @@ Zero-config PWA Plugin for SvelteKit
 
 ## 📦 Install
 
+> This Kit 3 branch (based on [upstream PR #111](https://github.com/vite-pwa/sveltekit/pull/111)) requires **SvelteKit 3**, **Vite 8** and **`vite-plugin-pwa` 2**: use the published upstream v1 for SvelteKit 1 and 2. This fork has not been published to npm. The plugin options are unchanged, and `kit.base`, `kit.outDir`, `kit.assets` and `kit.appDir` now default to your SvelteKit configuration.
+
 > From v0.3.0, `@vite-pwa/sveltekit` supports SvelteKit 2 (should also support SvelteKit 1).
 
 > From v0.2.0, `@vite-pwa/sveltekit` requires **SvelteKit 1.3.1 or above**.
@@ -70,11 +72,23 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit'
 
 export default {
   plugins: [
-    sveltekit(),
+    sveltekit({ serviceWorker: { register: false } }),
     SvelteKitPWA()
   ]
 }
 ```
+
+For `injectManifest`, configure the source entry through SvelteKit as well as the PWA plugin:
+
+```ts
+sveltekit({
+  serviceWorker: { register: false },
+  files: { serviceWorker: 'src/prompt-sw.ts' },
+})
+SvelteKitPWA({ strategies: 'injectManifest', srcDir: 'src', filename: 'prompt-sw.ts' })
+```
+
+SvelteKit builds the custom worker; this plugin injects its precache manifest before the adapter copies the output. Import `virtual:pwa-register` (or `virtual:pwa-register/svelte`) from client code to register it. Kit 3 configuration lives in `vite.config.ts`; `svelte.config.js` is no longer supported. Node.js 22.17 or later is required.
 
 Read the [📖 documentation](https://vite-pwa-org.netlify.app/frameworks/sveltekit) for a complete guide on how to configure and use
 this plugin.
